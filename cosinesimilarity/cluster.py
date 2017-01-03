@@ -18,21 +18,17 @@ class Cluster(object):
         self.number = number
         self.elements_idx = np.array([], dtype=int)
 
-
     def __len__(self):
 
         return len(self.elements_idx)
-
 
     def __str__(self):
 
         return "<Cluster no {}, size {}>".format(self.number, len(self))
 
-
     def __repr__(self):
 
         return str(self)
-
 
     def add(self, idx, ensemble):
         """
@@ -40,10 +36,9 @@ class Cluster(object):
         """
 
         assert ensemble.cluster_map[idx] == ensemble.NO_CLUSTER
-        self.elements_idx = np.resize(self.elements_idx, len(self.elements_idx) + 1) ## SLOW
+        self.elements_idx = np.resize(self.elements_idx, len(self.elements_idx) + 1)  # SLOW
         self.elements_idx[-1] = idx
         ensemble.cluster_map[idx] = self.number
-
 
     def recompute_elems(self, cluster_map):
         """
@@ -51,7 +46,6 @@ class Cluster(object):
         """
 
         self.elements_idx = np.nonzero(cluster_map == self.number)[0]
-
 
     def merge(self, other, ensemble):
         """
@@ -71,7 +65,6 @@ class Cluster(object):
         other.elements_idx = np.array([], dtype=int)
 
         return self
-
 
     def get_PCA_for_feature(self, feature_i, ensemble, comps=2, max_rows=1000):
         """
@@ -95,7 +88,6 @@ class Cluster(object):
         norm = sklearn.preprocessing.normalize(P.components_)
         return norm
 
-
     def plot_cluster_location(self, feature, ensemble):
         """
         Plot the cluster density over the overall ensemble data density in the background (for the given feature).
@@ -115,12 +107,12 @@ class Cluster(object):
 
         plt.gca().set_aspect('equal', adjustable='datalim')
         cropside = max(side, 2. / 120)
-        plt.hist2d(coords[:,0], coords[:,1], (2 / cropside, 2 / cropside), range=((-1, 1), (-1, 1)), norm=norm, alpha=0.15)
-        H_, x_, y_, im = plt.hist2d(coords_c[:,0], coords_c[:,1], (2 / cropside, 2 / cropside), range=((-1, 1), (-1, 1)), norm=norm)
+        plt.hist2d(coords[:, 0], coords[:, 1], (2 / cropside, 2 / cropside), range=((-1, 1), (-1, 1)), norm=norm, alpha=0.15)
+        H_, x_, y_, im = plt.hist2d(coords_c[:, 0], coords_c[:, 1], (2 / cropside, 2 / cropside), range=((-1, 1), (-1, 1)), norm=norm)
         plt.plot((-0.9, -0.9 + side), (-0.9, -0.9), 'k-', lw=2)
         plt.colorbar(im)
 
-    def plot_cluster_zoomed(self, feature, ensemble, resolution=(50,50)):
+    def plot_cluster_zoomed(self, feature, ensemble, resolution=(50, 50)):
         """
         Plot the cluster density with cluster-specific PCA-given coordinates (for the given feature).
 
@@ -138,23 +130,22 @@ class Cluster(object):
 
         comps = self.get_PCA_for_feature(feature, ensemble, comps=2)
         coords = f_m * comps.T
-        diameter = max(coords[:,0].max() - coords[:,0].min(), coords[:,1].max() - coords[:,1].min()) + 2 * side
-        c1_avg = np.mean([coords[:,0].min(), coords[:,0].max()])
-        c2_avg = np.mean([coords[:,1].min(), coords[:,1].max()])
+        diameter = max(coords[:, 0].max() - coords[:, 0].min(), coords[:, 1].max() - coords[:, 1].min()) + 2 * side
+        c1_avg = np.mean([coords[:, 0].min(), coords[:, 0].max()])
+        c2_avg = np.mean([coords[:, 1].min(), coords[:, 1].max()])
         c1_lo = c1_avg - diameter / 2
         c1_hi = c1_avg + diameter / 2
         c2_lo = c2_avg - diameter / 2
         c2_hi = c2_avg + diameter / 2
 
         plt.gca().set_aspect('equal', adjustable='datalim')
-        H_, x_, y_, im = plt.hist2d(coords[:,0], coords[:,1], resolution, range=((c1_lo, c1_hi), (c2_lo, c2_hi)), norm=mpl.colors.LogNorm())
+        H_, x_, y_, im = plt.hist2d(coords[:, 0], coords[:, 1], resolution, range=((c1_lo, c1_hi), (c2_lo, c2_hi)), norm=mpl.colors.LogNorm())
         plt.plot((c1_lo + side / 3, c1_lo + side / 3 + side), (c2_lo + side / 3, c2_lo + side / 3), 'k-', lw=2)
         plt.colorbar(im)
 
         return True
 
-
-    def plot_cluster_location_and_zoomed(self, feature, ensemble, resolution=(50,50)):
+    def plot_cluster_location_and_zoomed(self, feature, ensemble, resolution=(50, 50)):
 
         fname = ensemble.features[feature].name
 
@@ -170,9 +161,8 @@ class Cluster(object):
         self.plot_cluster_zoomed(feature, ensemble, resolution=resolution)
         plt.title("Zoom by '%s'" % fname)
 
-        plt.gcf().set_size_inches(12,6)
-        plt.tight_layout(rect=(0,0,1,0.95));
-
+        plt.gcf().set_size_inches(12, 6)
+        plt.tight_layout(rect=(0, 0, 1, 0.95))
 
     def estimate_edge_density(self, ensemble, max_rows=1000):
         """
@@ -195,9 +185,8 @@ class Cluster(object):
         products = [ (m * m.T).toarray() for m in mats ]
         product_avg = np.mean(products, axis=0)
         close = len( (product_avg > ensemble.t_cos).nonzero()[0] )
-        
-        return close / (len(rows) ** 2)
 
+        return close / (len(rows) ** 2)
 
     def get_row_names(self, ensemble):
         """
@@ -205,7 +194,6 @@ class Cluster(object):
         """
 
         return np.array(ensemble.row_cats.vals)[self.elements_idx]
-
 
     def get_feature_values(self, feature_i, ensemble):
         """
@@ -215,7 +203,3 @@ class Cluster(object):
         f = ensemble.features[feature_i]
         value_idx = f.m[self.elements_idx].sum(axis=0).nonzero()[1]
         return np.array(f.value_cats.vals)[value_idx]
-
-
-
-

@@ -11,7 +11,7 @@ setup(name='cosinesimilarity',
       description='Clustering by cosine similarity accelerated by PCA',
       long_description=readme(),
       classifiers=[
-        'Development Status :: 3 - Alpha',
+          'Development Status :: 3 - Alpha',
       ],
       keywords='clustering cosine similarity PCA',
       url='',
@@ -28,4 +28,3 @@ setup(name='cosinesimilarity',
       tests_require=['nose', 'nose-cover3'],
       include_package_data=True,
       zip_safe=True)
-
