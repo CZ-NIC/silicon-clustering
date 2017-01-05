@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
 import sklearn
 import sklearn.preprocessing
@@ -66,9 +68,9 @@ class Cluster(object):
 
         return self
 
-    def get_PCA_for_feature(self, feature_i, ensemble, comps=2, max_rows=1000):
+    def get_PCA(self, ensemble, comps=2, max_rows=1000):
         """
-        Compute and return normalised principal components for a feature within the cluster.
+        Compute and return normalised principal components within the cluster.
 
         Assumes that that the data has enough variability for this number of components.
         If the cluster has more than `max_rows` rows, selects `max_rows` pseudo-randomly.
@@ -82,16 +84,15 @@ class Cluster(object):
         else:
             rows = self.elements_idx
 
-        m = ensemble.features[feature_i].m[rows].toarray()
+        m = ensemble.data[rows].toarray()
         P = sklearn.decomposition.RandomizedPCA(comps, random_state=rnd)
         P.fit(m)
         norm = sklearn.preprocessing.normalize(P.components_)
         return norm
 
-    def plot_cluster_location(self, feature, ensemble):
+    def plot_cluster_location(self, ensemble):
         """
-        Plot the cluster density over the overall ensemble data density in the background (for the given feature).
-        If `ax` is given, plot into that axis (for saving etc.), otherwise plot and show in a window.
+        Plot the cluster density over the overall ensemble data density in the background.
         """
 
         try:
@@ -100,35 +101,35 @@ class Cluster(object):
         except ImportError as exc:
             raise ImportError("Matplotlib nad Pyplot required for plot functions of cosinesimilarity") from exc
 
-        side = ensemble.t_dist_single
-        coords = ensemble.PCA_coords[feature]
-        coords_c = ensemble.PCA_coords[feature][self.elements_idx]
+        side = ensemble.t_dist
+        coords = ensemble.PCA_coords
+        coords_cluster = ensemble.PCA_coords[self.elements_idx]
         norm = mpl.colors.LogNorm()
 
         plt.gca().set_aspect('equal', adjustable='datalim')
         cropside = max(side, 2. / 120)
         plt.hist2d(coords[:, 0], coords[:, 1], (2 / cropside, 2 / cropside), range=((-1, 1), (-1, 1)), norm=norm, alpha=0.15)
-        H_, x_, y_, im = plt.hist2d(coords_c[:, 0], coords_c[:, 1], (2 / cropside, 2 / cropside), range=((-1, 1), (-1, 1)), norm=norm)
+        H_, x_, y_, im = plt.hist2d(coords_cluster[:, 0], coords_cluster[:, 1], (2 / cropside, 2 / cropside), range=((-1, 1), (-1, 1)), norm=norm)
         plt.plot((-0.9, -0.9 + side), (-0.9, -0.9), 'k-', lw=2)
         plt.colorbar(im)
 
-    def plot_cluster_zoomed(self, feature, ensemble, resolution=(50, 50)):
+    def plot_cluster_zoomed(self, ensemble, resolution=(50, 50)):
         """
-        Plot the cluster density with cluster-specific PCA-given coordinates (for the given feature).
+        Plot the cluster density with cluster-specific PCA-given coordinates.
 
         If `ax` is given, plot into that axis (for saving etc.), otherwise plot and show in a window.
         The aspect-ratio of the plot is 1, `resolution` determines the number of histogram cells.
-        Also plots a line of length `t_dist_single`.
-        Returns True in success and False when the cluster does not have enough internal variance for
+        Also plots a line of length `t_dist`.
+        Returns True on success and False when the cluster does not have enough internal variance for
         a meningful projection.
         """
 
-        side = ensemble.t_dist_single
-        f_m = ensemble.features[feature].m[self.elements_idx]
+        side = ensemble.t_dist
+        f_m = ensemble.data[self.elements_idx]
         if (f_m.max(axis=0).toarray() == f_m.min(axis=0).toarray()).all():
             return False
 
-        comps = self.get_PCA_for_feature(feature, ensemble, comps=2)
+        comps = self.get_PCA(ensemble, comps=2)
         coords = f_m * comps.T
         diameter = max(coords[:, 0].max() - coords[:, 0].min(), coords[:, 1].max() - coords[:, 1].min()) + 2 * side
         c1_avg = np.mean([coords[:, 0].min(), coords[:, 0].max()])
@@ -145,21 +146,20 @@ class Cluster(object):
 
         return True
 
-    def plot_cluster_location_and_zoomed(self, feature, ensemble, resolution=(50, 50)):
-
-        fname = ensemble.features[feature].name
+    def plot_cluster_location_and_zoomed(self, ensemble, resolution=(50, 50)):
+        "Plot location in all the data and zoomed cluster side by side."
 
         plt.clf()
         plt.suptitle("Cluster %d, size %d, edge density %.4f" % (
             self.number, len(self), self.estimate_edge_density(ensemble)))
 
         plt.subplot(1, 2, 1)
-        self.plot_cluster_location(feature, ensemble)
-        plt.title("Location by '%s'" % fname)
+        self.plot_cluster_location(ensemble)
+        plt.title("Location")
 
         plt.subplot(1, 2, 2)
-        self.plot_cluster_zoomed(feature, ensemble, resolution=resolution)
-        plt.title("Zoom by '%s'" % fname)
+        self.plot_cluster_zoomed(ensemble, resolution=resolution)
+        plt.title("Zoomed cluster")
 
         plt.gcf().set_size_inches(12, 6)
         plt.tight_layout(rect=(0, 0, 1, 0.95))
@@ -181,25 +181,9 @@ class Cluster(object):
         else:
             rows = self.elements_idx
 
-        mats = [ f.m[rows] for f in ensemble.features ]
-        products = [ (m * m.T).toarray() for m in mats ]
-        product_avg = np.mean(products, axis=0)
-        close = len( (product_avg > ensemble.t_cos).nonzero()[0] )
+        m = ensemble.data[rows]
+        product = (m * m.T).toarray()
+        close = len( (product > ensemble.t_cos).nonzero()[0] )
 
         return close / (len(rows) ** 2)
 
-    def get_row_names(self, ensemble):
-        """
-        Return an array of cluster elements row names.
-        """
-
-        return np.array(ensemble.row_cats.vals)[self.elements_idx]
-
-    def get_feature_values(self, feature_i, ensemble):
-        """
-        Return an array of cluster value names encountered in feature `feature_i`.
-        """
-
-        f = ensemble.features[feature_i]
-        value_idx = f.m[self.elements_idx].sum(axis=0).nonzero()[1]
-        return np.array(f.value_cats.vals)[value_idx]

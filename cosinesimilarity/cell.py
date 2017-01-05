@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
 
 
@@ -17,8 +19,8 @@ class Cell(object):
         self.elements_idx = []
         # Array of cell row numbers after mask
         self.masked_idx = None
-        # Feature sparse matrices corresponding to self.masked_idx
-        self.masked_mats = None
+        # Feature sparse matrix corresponding to rows of self.masked_idx
+        self.masked_mat = None
 
     def __str__(self):
 
@@ -48,4 +50,4 @@ class Cell(object):
         idx = np.unique(self.elements_idx)
         self.elements_idx = list(idx)
         self.masked_idx = idx[mask[idx]]
-        self.masked_mats = [ f.m[self.masked_idx] for f in ensemble.features ]
+        self.masked_mat = ensemble.data[self.masked_idx]

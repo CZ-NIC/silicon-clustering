@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import itertools
 import logging
 import numpy as np
@@ -42,78 +44,119 @@ class ClusteringEnsemble(object):
 
     NO_CLUSTER = -1
 
-    def __init__(self, sim_threshold=0.99, cell_dims=None):
-        "After creation, call load_csv() to load the data."
+    def __init__(self, data, sim_threshold=0.99, cell_dims=4, rnd=None, normalize=True):
+        "TODO."
 
-        self.features = None
-        self.n_rows = 0
-        self.row_cats = None
+        # Numpy 2D array, Matrix or `scipy.sparse.csr` sparse matrix, columns are features
+        self.data = data
+
+        # Normalize and check types
+        if not ((isinstance(self.data, np.array) and len(self.data.shape) == 2) or
+                isinstance(self.data, scipy.sparse.csr_matrix)):
+            raise TypeError("ClusteringEnsemble needs data as 2D numpy.array or scipy.sparse.csr_matrix")
+
+        # Number of points (rows)
+        self.n_rows = self.data.shape[0]
+
+        # Number of features (columns)
+        self.n_features = self.data.shape[1]
 
         # Cosine similarity (compared to average of feature similarities)
         self.t_cos = sim_threshold
-        self.t_cos_single = self.t_cos  # Recomputed later according to #features
+
         # Vector angle for all the features together
         self.t_angle = np.arccos(self.t_cos)
-        self.t_angle_single = self.t_angle  # Recomputed later according to #features
-        # Euclidean distance corresponding to the similarity and angle
+
+        # Euclidean distance corresponding to the similarity and angle when normalized
         self.t_dist = 2 * np.sin(self.t_angle / 2)
-        self.t_dist_single = self.t_dist  # Recomputed later according to #features
 
-        self.cluster_map = None
-        self.clusters = []
-
-        self.PCA_comps = None
-        self.PCA_coords = None
-
-        self.cell_dims = cell_dims
-        self.cells = {}
-
-        self.cell_mask = None
-
-    def init_from_features(self):
-        "Update the configuration after loading the features. Called internally by load_csv etc."
-
-        self.n_rows = self.features[0].m.shape[0]
-        self.row_cats = self.features[0].row_cats
+        # Map row -> cluster_number
         self.cluster_map = np.repeat(self.NO_CLUSTER, self.n_rows)
 
-        # Necessary cosine similarity for any single feature (assuming the others could be 1)
-        self.t_cos_single = 1.0 - len(self.features) * (1.0 - self.t_cos)
-        # Necessary vector angle for any single feature (similarly as t_cos_single)
-        self.t_angle_single = np.arccos(self.t_cos_single)
-        # Necessary euclidean distance for any single feature (simiarly as t_cos_single)
-        self.t_dist_single = 2 * np.sin(self.t_angle_single / 2)
+        # List of Cluster instances (by number)
+        self.clusters = []
 
-        if self.cell_dims and not len(self.cell_dims) == len(self.features):
-            raise ValueError("ClusteringEnsemble cell_dims and feature number mismatch")
+        # Number of dimensions to split into cells
+        self.cell_dims = cell_dims
+
+        # PCA components of a row sample
+        self.PCA_comps = None
+
+        # Coordinates of the points
+        self.PCA_coords = None
+
+        # Dictionary of existing cells (int_coords) -> Cell
+        self.cells = {}
+
+        # Mask of rows to be included in the final adjacent-cell multiplication 
+        self.cell_mask = None
+
+        # Random number generator to use (instance of numpy.random)
+        self.rnd = rnd or np.random
+
+        # Run normalization
+        self.normalize = normalize
+
+    def run(self, quiet=False, nibles=1000, PCA_samples=5000):
+        """
+        Run the clustering procedure on the data.
+        Displays a lot of progress info and other information.
+        """
+
+        # Normalize if requested
+        if self.normalize:
+            logger.info("Normalising features ...")
+            if isinstance(self.data, np.array) and len(self.data.shape) == 2:
+                norm_rows = (self.data ** 2.0).sum(axis=1) ** 0.5
+                self.data = self.data * norm_rows
+            else:
+                norm_rows = scipy.sparse.csr_matrix(1.0 / np.power(self.data.power(2.0).sum(axis=1), (0.5)))
+                self.data = self.data.multiply(norm_rows)
+
+        # Compute PCA and coordinates
+        logger.info("Computing feature PCAs ...")
+        self.PCA_comps = self.compute_PCAs(samples=PCA_samples, components=self.cell_dims, rnd=rnd)
+        self.PCA_coords = self.data * self.PCA_comps.T
+
+        logger.info("Nibble-clustering ...")
+        self.nibble_clusters(nibbles)
+
+        cluster_hist_nibble = "    Unclustered rows: %d\n%s" % (
+            sum(self.cluster_map == self.NO_CLUSTER),
+            format_historgram([ len(c) for c in self.clusters ]))
+
+        logger.info("Splitting rows into cells ...")
+        self.split_to_cells()
+
+        logger.info("Computing cluster rows to include in adjacent cell multiplication ...")
+        self.compute_cell_mask()
+
+        logger.info("Computing per-cell sparse matrices ...")
+        self.compute_cell_matrices()
+
+        logger.info("Cell full volume histogram:\n%s", format_historgram([ len(c.elements_idx) for c in self.cells.values() ]))
+
+        logger.info("Cell masked volume histogram:\n%s", format_historgram([ len(c.masked_idx) for c in self.cells.values() ]))
+
+        logger.info("Pairwise multiplying adjacent cells ...")
+        self.multiply_adjacent_masked_cells()
+
+        logger.info("Clustering control: %d nonempty, %d empty, total size %d (of %d rows), %d rows unclustered",
+                    len([c for c in self.clusters if len(c) > 0]), len([c for c in self.clusters if len(c) == 0]),
+                    sum([ len(c) for c in self.clusters ]), self.n_rows,
+                    sum(self.cluster_map == self.NO_CLUSTER))
+
+        logger.info("Cluster volumes histogram after nibble:\n%s", cluster_hist_nibble)
+
+        logger.info("Final cluster volumes histogram:\n%s", format_historgram( [ len(c) for c in self.clusters ]))
 
     def __str__(self):
 
-        return "<ClusteringEnsemble [sim={:.5f}] {} rows, features ({})>".format(
-            self.t_cos, self.n_rows, ', '.join(f.name for f in self.features))
+        return "<ClusteringEnsemble [sim={:.5f}] {} rows, {} features>".format(
+            self.t_cos, self.n_rows, self.n_features))
 
     def __repr__(self):
         return str(self)
-
-    def load_csv(self, fname, **kwargs):
-        "Load a CSV file into freshly initialised ClusteringEnsemble"
-        # TODO: remove
-
-        assert self.features is None
-        self.features = dataread.read_csv_sparse_matrix(fname, **kwargs)
-        self.init_from_features()
-
-    def normalise_features(self, exponent=2.0):
-        "Normalise features separatedly to have L_(exponent) length 1"
-
-        for f in self.features:
-            f.normalise(2.0)
-
-    def new_cluster(self):
-
-        c = Cluster(len(self.clusters))
-        self.clusters.append(c)
-        return c
 
     def compute_PCAs(self, samples=5000, components=2):
         """
@@ -124,34 +167,19 @@ class ClusteringEnsemble(object):
         self.PCA_comps = []
 
         if samples <= self.n_rows:
-            PCA_sample_ix = np.random.choice(self.n_rows, size=samples, replace=False)
+            PCA_sample_ix = self.rnd.choice(self.n_rows, size=samples, replace=False)
         else:
             PCA_sample_ix = np.arange(self.n_rows)
 
-        for fi, f in enumerate(self.features):
-            cs = max(components, self.cell_dims[fi])
-            logger.info("Finding %d PCAs for %d samples, feature %s ...", cs, samples, f.name)
-            P = sklearn.decomposition.RandomizedPCA(cs)
-            m = f.m[PCA_sample_ix].toarray()
-            P.fit(m)
-            self.PCA_comps.append(np.array([ comp / (comp.dot(comp)**0.5) for comp in P.components_ ]))
+        logger.info("Finding %d PCAs for %d samples ...", components, samples)
+        P = sklearn.decomposition.PCA(components, random_state=self.rnd, svd_solver='randomized')
+        m = self.data[PCA_sample_ix].toarray()
+        P.fit(m)
+        return np.array([ comp / (comp.dot(comp)**0.5) for comp in P.components_ ])
 
-    def compute_PCA_coords(self, components=None):
+    def plot_PCA_coords(self, filter_=None):
         """
-        Compute the coordinates of the feature points according to the normalised PCA vectors.
-        """
-
-        assert(self.PCA_comps is not None)
-        logger.debug("Computing feature coordinates ...")
-        self.PCA_coords = []
-
-        for f, comps in zip(self.features, self.PCA_comps):
-            self.PCA_coords.append(f.m * comps[:components].T)
-
-    def plot_PCA_coords(self, feature_i, filter_=None):
-        """
-        Plot all the points (or those given by filter_) according to
-        the PCA coordinates of the specified feature.
+        Plot all the points (or those given by filter_) according to the PCA coordinates.
         """
 
         try:
@@ -162,7 +190,7 @@ class ClusteringEnsemble(object):
 
         assert(self.PCA_coords is not None)
 
-        coords = self.PCA_coords[feature_i]
+        coords = self.PCA_coords
         if filter_ is not None:
             coords = coords[filter_]
 
@@ -171,36 +199,25 @@ class ClusteringEnsemble(object):
         H_, x_, y_, im = plt.hist2d(coords[:, 0], coords[:, 1], (2 / cropside, 2 / cropside), range=((-1, 1), (-1, 1)), norm=mpl.colors.LogNorm())
         plt.plot((-0.9, -0.9 + side), (-0.9, -0.9), 'k-', lw=2)
         plt.colorbar(im)
-        fname = self.features[feature_i].name
-        plt.title("PCA projection of '%s'" % fname)
+        plt.title("PCA projection")
         plt.gcf().set_size_inches(6, 6)
         plt.tight_layout(rect=(0, 0, 1, 0.95))
 
-    def cell_coords_by_components(self, row):
-        """
-        Compute the cell coordinates for a given row.
-        """
+    def new_cluster(self):
 
-        c = []
-        for d, coords in zip(self.cell_dims, self.PCA_coords):
-            if d > 0:
-                c.extend(list((coords[row][:d] // self.t_dist_single).astype(int)))
-
-        return tuple(c)
+        c = Cluster(len(self.clusters))
+        self.clusters.append(c)
+        return c
 
     def split_to_cells(self):
         """
-        Split rows into cells of side `t_dist_single` (per feature) and coordinates given by `PCA_coords`.
-        `dims` tells how many dimensions to take from every feature, e.g. `dims=[2, 0, 1]`
-        creates 3D cells, using 2 components from the first feature and 1 component from the third.
+        Split rows into cells of side `t_dist` and coordinates given by `PCA_coords`.
         """
 
         assert(self.PCA_coords is not None)
 
-        self.cells = {}
-
         for row in range(self.n_rows):
-            coords = self.cell_coords_by_components(row)
+            coords = tuple((self.PCA_coords[row] // self.t_dist).astype(int))
             if coords not in self.cells:
                 self.cells[coords] = Cell(coords)
             self.cells[coords].add_row(row)
@@ -260,11 +277,10 @@ class ClusteringEnsemble(object):
         Computes the distances of `center_row` with all other points.
         """
 
-        center_features = [f.m[center_row] for f in self.features]
+        center = self.data[center_row]
 
-        sim_f = [ f.m.dot(cf.T).toarray().flatten() for f, cf in zip(self.features, center_features) ]
-        sim_all = np.sum(sim_f, axis=0) / len(sim_f)
-        near_ix = (sim_all > self.t_cos)
+        sim = self.data.dot(cf.T).toarray().flatten()
+        near_ix = (sim > self.t_cos)
 
         return self.cluster_points_of_mask(near_ix)
 
@@ -278,7 +294,7 @@ class ClusteringEnsemble(object):
         for i in range(nibbles):
             # Try to find index not in a cluster already, but not too hard
             for j in range(5):
-                ix = np.random.randint(0, self.n_rows)
+                ix = self.rnd.randint(0, self.n_rows)
                 if self.cluster_map[ix] == self.NO_CLUSTER:
                     break
             self.cluster_around(ix)
@@ -305,7 +321,7 @@ class ClusteringEnsemble(object):
             if len(c) > 0:
                 n = int((len(c) - minsize) * fraction + minsize)
                 n = min(n, maxsize, len(c))
-                c_returns = np.random.choice(c.elements_idx, size=n, replace=False)
+                c_returns = self.rnd.choice(c.elements_idx, size=n, replace=False)
                 self.cell_mask[c_returns] = True
 
         pl = ProgressLogger(logger, total=len(self.cells), msg="Cell mask for small cells")
@@ -315,7 +331,7 @@ class ClusteringEnsemble(object):
                 # Include the entire cell
                 self.cell_mask[np.array(c.elements_idx)] = True
             else:
-                c_returns = np.random.choice(c.elements_idx, size=cellminsize, replace=False)
+                c_returns = self.rnd.choice(c.elements_idx, size=cellminsize, replace=False)
                 self.cell_mask[c_returns] = True
 
     def compute_cell_matrices(self):
@@ -342,10 +358,8 @@ class ClusteringEnsemble(object):
 
     def multiply_masked_cells(self, c1, c2):
 
-        products = [ (m1 * m2.T).toarray() for m1, m2 in zip(c1.masked_mats, c2.masked_mats) ]
-        product_avg = np.mean(products, axis=0)
-
-        assert product_avg.shape == (len(c1.masked_idx), len(c2.masked_idx))
+        product = (c1.masked_mat * c2.masked_mat.T).toarray()
+        assert product.shape == (len(c1.masked_idx), len(c2.masked_idx))
 
         for i1, i2 in zip(* (product_avg > self.t_cos).nonzero() ):
             # translate matrix indices to row indices and cluster them
@@ -358,52 +372,6 @@ class ClusteringEnsemble(object):
 
         return sorted(self.clusters, key=lambda c: len(c), reverse=True)
 
-    def run_clustering(self, nibbles=1000):
-        """
-        After loading, run the clustering procedure on the data.
-        Displays a lot of progress info and other information.
-        """
-
-        logger.info("Normalising features ...")
-        self.normalise_features()
-
-        logger.info("Computing feature PCAs ...")
-        self.compute_PCAs(components=2)
-
-        logger.info("Computing feature PCA coordinates ...")
-        self.compute_PCA_coords()
-
-        logger.info("Nibble-clustering ...")
-        self.nibble_clusters(nibbles)
-
-        cluster_hist_nibble = "    Unclustered rows: %d\n%s" % (
-            sum(self.cluster_map == self.NO_CLUSTER),
-            format_historgram([ len(c) for c in self.clusters ]))
-
-        logger.info("Splitting rows into cells ...")
-        self.split_to_cells()
-
-        logger.info("Computing cluster rows to include in adjacent cell multiplication ...")
-        self.compute_cell_mask()
-
-        logger.info("Computing per-cell sparse matrices ...")
-        self.compute_cell_matrices()
-
-        logger.info("Cell full volume histogram:\n%s", format_historgram([ len(c.elements_idx) for c in self.cells.values() ]))
-
-        logger.info("Cell masked volume histogram:\n%s", format_historgram([ len(c.masked_idx) for c in self.cells.values() ]))
-
-        logger.info("Pairwise multiplying adjacent cells ...")
-        self.multiply_adjacent_masked_cells()
-
-        logger.info("Clustering control: %d nonempty, %d empty, total size %d (of %d rows), %d rows unclustered",
-                    len([c for c in self.clusters if len(c) > 0]), len([c for c in self.clusters if len(c) == 0]),
-                    sum([ len(c) for c in self.clusters ]), self.n_rows,
-                    sum(self.cluster_map == self.NO_CLUSTER))
-
-        logger.info("Cluster volumes histogram after nibble:\n%s", cluster_hist_nibble)
-
-        logger.info("Final cluster volumes histogram:\n%s", format_historgram( [ len(c) for c in self.clusters ]))
 
     def save_pickle(self, pickle_fname):
         """
