@@ -4,13 +4,35 @@ import datetime
 import io
 import logging
 import sys
+import numpy as np
+import scipy.sparse
+
+def importPlt():
+    "Import and return (matplotlib, pyplot) or raise an exception"
+
+    try:
+        import matplotlib as mpl
+        import matplotlib.pyplot as plt
+        return mpl, plt
+    except ImportError as exc:
+        raise ImportError("Matplotlib nad Pyplot required for plot functions of silicon-clustering") from exc
+
+
+def toArray(a):
+    "Converts a sparse matrix to ndarray, ndarrays pass through, other types raise TypeError."
+    if isinstance(a, np.ndarray):
+        return a
+    elif scipy.sparse.isspmatrix(a):
+        return a.toarray()
+    else:
+        raise TypeError("_toarray() needs scipy.sparse.csr.csr_matrix or nupmy.ndarray")
 
 
 def format_historgram(values, bins_n=10, top_n=10, indent=''):
     """Format a histogram of non-negative values.
 
     Returns a `bins_n` bin histogram of `values` with bin borders
-    scaled logrithmically, writing `top_n` values separately.
+    scaled logrithmically, writing `top_n` values explicitely.
     The lines are indented with `indent` or returned separately when
     `indent=None`.
     """
@@ -19,7 +41,6 @@ def format_historgram(values, bins_n=10, top_n=10, indent=''):
     s = []
     if top_n:
         topvals = values[-top_n:]
-        values = values[:-top_n]
 
     if values:
         bins = [0] * bins_n
@@ -33,7 +54,8 @@ def format_historgram(values, bins_n=10, top_n=10, indent=''):
         for b in range(bins_n):
             low = upper_bounds[b - 1] if b > 0 else 0
             rng = "[%s, %s)" % (low, upper_bounds[b])
-            s.append("%-14s  %d" % (rng, bins[b]))
+            if (low < upper_bounds[b]):
+                s.append("%-14s  %d" % (rng, bins[b]))
 
     if top_n:
         s.append("Top:            %s" % (' '.join([str(v) for v in topvals])))

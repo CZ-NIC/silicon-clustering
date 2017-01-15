@@ -1,6 +1,15 @@
 Clustering by cosine similarity
 ===============================
 
+Connectivity
+Clustering
+Sparse
+Nearest-?
+
+(Distance, Cosine Similarity)
+
+
+
 A fast algorithm computing connectivity components (clusters) of elements based 
 on their cosine similarity. Two elements are connected by an edge if their cosine 
 similarity is above a given threshold.

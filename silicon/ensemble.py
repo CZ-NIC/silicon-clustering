@@ -4,13 +4,14 @@ import itertools
 import logging
 import numpy as np
 import pickle
-import sklearn
+import sklearn.decomposition
+import scipy.sparse
 
 from .cluster import Cluster
 from .cell import Cell
-from .utils import ProgressLogger, format_historgram
+from .utils import ProgressLogger, format_historgram, importPlt, toArray
 
-logger = logging.getLogger('cosinesimilarity')
+logger = logging.getLogger('silicon')
 
 
 class ClusteringEnsemble(object):
@@ -23,7 +24,7 @@ class ClusteringEnsemble(object):
     Uses several tricks to speed up the computation compared to all-pair scalar products via matrix multiplication:
 
     * The data is projected into `cell_dims` principal components by fearure. The projection divides
-      the data into cells of size `self.t_dist_single` so only rows from adjacent cells (all cell coordinates +-1)
+      the data into cells of size `self.t_dist` so only rows from adjacent cells (all cell coordinates +-1)
       have a chance to be similar enough. Then the vectors of the rows of the adjacent cells are multiplied.
 
       This would still mean that some cells are too big for matrix multiplication so a second trick is used
@@ -47,13 +48,13 @@ class ClusteringEnsemble(object):
     def __init__(self, data, sim_threshold=0.99, cell_dims=4, rnd=None, normalize=True):
         "TODO."
 
-        # Numpy 2D array, Matrix or `scipy.sparse.csr` sparse matrix, columns are features
+        # Numpy 2D array, Matrix or `scipy.sparse.csr_matrix` sparse matrix, columns are features
         self.data = data
 
         # Normalize and check types
-        if not ((isinstance(self.data, np.array) and len(self.data.shape) == 2) or
-                isinstance(self.data, scipy.sparse.csr_matrix)):
-            raise TypeError("ClusteringEnsemble needs data as 2D numpy.array or scipy.sparse.csr_matrix")
+        if not ((isinstance(self.data, np.ndarray) and len(self.data.shape) == 2) or
+                isinstance(self.data, scipy.sparse.csr.csr_matrix)):
+            raise TypeError("ClusteringEnsemble needs data as 2D numpy.ndarray or scipy.sparse.csr_matrix")
 
         # Number of points (rows)
         self.n_rows = self.data.shape[0]
@@ -97,7 +98,7 @@ class ClusteringEnsemble(object):
         # Run normalization
         self.normalize = normalize
 
-    def run(self, quiet=False, nibles=1000, PCA_samples=5000):
+    def run(self, quiet=False, nibbles=1000, PCA_samples=5000):
         """
         Run the clustering procedure on the data.
         Displays a lot of progress info and other information.
@@ -106,20 +107,20 @@ class ClusteringEnsemble(object):
         # Normalize if requested
         if self.normalize:
             logger.info("Normalising features ...")
-            if isinstance(self.data, np.array) and len(self.data.shape) == 2:
-                norm_rows = (self.data ** 2.0).sum(axis=1) ** 0.5
-                self.data = self.data * norm_rows
+            if isinstance(self.data, np.ndarray):
+                norm_rows = 1.0 / (self.data ** 2.0).sum(axis=1) ** 0.5
+                self.data = self.data * np.array([norm_rows]).T
             else:
                 norm_rows = scipy.sparse.csr_matrix(1.0 / np.power(self.data.power(2.0).sum(axis=1), (0.5)))
                 self.data = self.data.multiply(norm_rows)
 
         # Compute PCA and coordinates
         logger.info("Computing feature PCAs ...")
-        self.PCA_comps = self.compute_PCAs(samples=PCA_samples, components=self.cell_dims, rnd=rnd)
-        self.PCA_coords = self.data * self.PCA_comps.T
+        self.PCA_comps = self.compute_PCAs(samples=PCA_samples, components=self.cell_dims)
+        self.PCA_coords = self.data.dot(self.PCA_comps.T)
 
         logger.info("Nibble-clustering ...")
-        self.nibble_clusters(nibbles)
+        self.nibble_clusters(min(nibbles, self.n_rows // 2))
 
         cluster_hist_nibble = "    Unclustered rows: %d\n%s" % (
             sum(self.cluster_map == self.NO_CLUSTER),
@@ -153,7 +154,7 @@ class ClusteringEnsemble(object):
     def __str__(self):
 
         return "<ClusteringEnsemble [sim={:.5f}] {} rows, {} features>".format(
-            self.t_cos, self.n_rows, self.n_features))
+            self.t_cos, self.n_rows, self.n_features)
 
     def __repr__(self):
         return str(self)
@@ -173,7 +174,7 @@ class ClusteringEnsemble(object):
 
         logger.info("Finding %d PCAs for %d samples ...", components, samples)
         P = sklearn.decomposition.PCA(components, random_state=self.rnd, svd_solver='randomized')
-        m = self.data[PCA_sample_ix].toarray()
+        m = toArray(self.data[PCA_sample_ix])
         P.fit(m)
         return np.array([ comp / (comp.dot(comp)**0.5) for comp in P.components_ ])
 
@@ -182,19 +183,14 @@ class ClusteringEnsemble(object):
         Plot all the points (or those given by filter_) according to the PCA coordinates.
         """
 
-        try:
-            import matplotlib as mpl
-            import matplotlib.pyplot as plt
-        except ImportError as exc:
-            raise ImportError("Matplotlib nad Pyplot required for plot functions of cosinesimilarity") from exc
+        mpl, plt = importPlt()
 
         assert(self.PCA_coords is not None)
-
         coords = self.PCA_coords
         if filter_ is not None:
             coords = coords[filter_]
 
-        side = self.t_dist_single
+        side = self.t_dist
         cropside = max(side, 2. / 120)
         H_, x_, y_, im = plt.hist2d(coords[:, 0], coords[:, 1], (2 / cropside, 2 / cropside), range=((-1, 1), (-1, 1)), norm=mpl.colors.LogNorm())
         plt.plot((-0.9, -0.9 + side), (-0.9, -0.9), 'k-', lw=2)
@@ -279,7 +275,7 @@ class ClusteringEnsemble(object):
 
         center = self.data[center_row]
 
-        sim = self.data.dot(cf.T).toarray().flatten()
+        sim = toArray(self.data.dot(center.T)).flatten()
         near_ix = (sim > self.t_cos)
 
         return self.cluster_points_of_mask(near_ix)
@@ -345,7 +341,7 @@ class ClusteringEnsemble(object):
 
     def multiply_adjacent_masked_cells(self):
 
-        deltas = np.array(list(itertools.product( *([(-1, 0, 1)] * sum(self.cell_dims)) )))
+        deltas = np.array(list(itertools.product( *([(-1, 0, 1)] * self.cell_dims) )))
         pl = ProgressLogger(logger, total=len(self.cells), msg="Adjacent cell multiplication")
 
         for c1_coords, c1 in self.cells.items():
@@ -358,10 +354,10 @@ class ClusteringEnsemble(object):
 
     def multiply_masked_cells(self, c1, c2):
 
-        product = (c1.masked_mat * c2.masked_mat.T).toarray()
+        product = toArray(c1.masked_mat.dot(c2.masked_mat.T))
         assert product.shape == (len(c1.masked_idx), len(c2.masked_idx))
 
-        for i1, i2 in zip(* (product_avg > self.t_cos).nonzero() ):
+        for i1, i2 in zip(* (product > self.t_cos).nonzero() ):
             # translate matrix indices to row indices and cluster them
             self.cluster_two_rows(c1.masked_idx[i1], c2.masked_idx[i2])
 
@@ -375,7 +371,7 @@ class ClusteringEnsemble(object):
 
     def save_pickle(self, pickle_fname):
         """
-        Save the cluster as a python pickle. The size is approximately 50% of input CSV.
+        Save the clustering as a python pickle. The size is approximately 50% of a CSV.
         """
 
         logger.info("Saving pickled ensemble to %s ...", pickle_fname)
@@ -385,7 +381,7 @@ class ClusteringEnsemble(object):
     @classmethod
     def load_pickle(cls, pickle_fname):
         """
-        Load the cluster from a python pickle.
+        Load the clustering from a python pickle.
         """
 
         logger.info("Loading pickled ensemble from %s ...", pickle_fname)

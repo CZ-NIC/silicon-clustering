@@ -4,8 +4,9 @@ import numpy as np
 import sklearn
 import sklearn.preprocessing
 import logging
+from .utils import importPlt, toArray
 
-logger = logging.getLogger('cosinesimilarity')
+logger = logging.getLogger('silicon')
 
 
 class Cluster(object):
@@ -84,8 +85,8 @@ class Cluster(object):
         else:
             rows = self.elements_idx
 
-        m = ensemble.data[rows].toarray()
-        P = sklearn.decomposition.RandomizedPCA(comps, random_state=rnd)
+        m = toArray(ensemble.data[rows])
+        P = sklearn.decomposition.PCA(comps, random_state=rnd, svd_solver='randomized')
         P.fit(m)
         norm = sklearn.preprocessing.normalize(P.components_)
         return norm
@@ -95,11 +96,7 @@ class Cluster(object):
         Plot the cluster density over the overall ensemble data density in the background.
         """
 
-        try:
-            import matplotlib as mpl
-            import matplotlib.pyplot as plt
-        except ImportError as exc:
-            raise ImportError("Matplotlib nad Pyplot required for plot functions of cosinesimilarity") from exc
+        mpl, plt = importPlt()
 
         side = ensemble.t_dist
         coords = ensemble.PCA_coords
@@ -124,9 +121,11 @@ class Cluster(object):
         a meningful projection.
         """
 
+        mpl, plt = importPlt()
+
         side = ensemble.t_dist
         f_m = ensemble.data[self.elements_idx]
-        if (f_m.max(axis=0).toarray() == f_m.min(axis=0).toarray()).all():
+        if not toArray(f_m.max(axis=0) != f_m.min(axis=0)).any():
             return False
 
         comps = self.get_PCA(ensemble, comps=2)
@@ -148,6 +147,8 @@ class Cluster(object):
 
     def plot_cluster_location_and_zoomed(self, ensemble, resolution=(50, 50)):
         "Plot location in all the data and zoomed cluster side by side."
+        
+        mpl, plt = importPlt()
 
         plt.clf()
         plt.suptitle("Cluster %d, size %d, edge density %.4f" % (
@@ -182,7 +183,7 @@ class Cluster(object):
             rows = self.elements_idx
 
         m = ensemble.data[rows]
-        product = (m * m.T).toarray()
+        product = toArray(m.dot(m.T))
         close = len( (product > ensemble.t_cos).nonzero()[0] )
 
         return close / (len(rows) ** 2)

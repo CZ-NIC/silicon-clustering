@@ -6,9 +6,9 @@ def readme():
         return f.read()
 
 
-setup(name='cosinesimilarity',
+setup(name='silicon-clustering',
       version='0.1',
-      description='Clustering by cosine similarity accelerated by PCA',
+      description='Single-linkage connectivity clustering by cosine similarity',
       long_description=readme(),
       classifiers=[
           'Development Status :: 3 - Alpha',
@@ -16,8 +16,8 @@ setup(name='cosinesimilarity',
           'Programming Language :: Python :: 3',
           'Topic :: Scientific/Engineering :: Information Analysis',
       ],
-      keywords='clustering cosine similarity PCA',
-      url='',
+      keywords='connectivity clustering similarity PCA',
+      url='https://github.com/CZ-NIC/silicon-clustering',
       author='Tomas Gavenciak',
       author_email='tomas.gavenciak@nic.cz',
       license='MIT',
