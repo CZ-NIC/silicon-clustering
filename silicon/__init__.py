@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 
 from .cluster import Cluster
-from .ensemble import ClusteringEnsemble
+from .ensemble import CosineClustering#, DistanceClustering

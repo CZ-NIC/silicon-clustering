@@ -26,7 +26,7 @@ class BasicTestSuite(unittest.TestCase):
         "Cluster a random 1000x100 array"
         rnd = np.random.RandomState(42)
         data = self.gen_rand_data(1000, 100, 1.0, 0.1, rnd)
-        ens = sc.ClusteringEnsemble(
+        ens = sc.CosineClustering(
                 data, sim_threshold=0.4, cell_dims=2, normalize=True, rnd=rnd)
         ens.run()
         assert (sorted(map(len, ens.clusters)))[-12:] == [4, 5, 5, 6, 7, 7, 8, 11, 11, 11, 14, 394]
@@ -35,7 +35,7 @@ class BasicTestSuite(unittest.TestCase):
         "Cluster a random 1000x100 array, no nibbles, dim=1"
         rnd = np.random.RandomState(42)
         data = self.gen_rand_data(1000, 100, 1.0, 0.1, rnd)
-        ens = sc.ClusteringEnsemble(
+        ens = sc.CosineClustering(
                 data, sim_threshold=0.4, cell_dims=1, normalize=True, rnd=rnd)
         ens.run(nibbles=0)
         assert (sorted(map(len, ens.clusters)))[-12:] == [4, 5, 5, 6, 7, 7, 8, 11, 11, 11, 14, 394]
@@ -44,7 +44,7 @@ class BasicTestSuite(unittest.TestCase):
         "Cluster a random 1000x100 sparse matrix (10% full)"
         rnd = np.random.RandomState(42)
         data = scipy.sparse.csr_matrix(self.gen_rand_data(1000, 100, 1.0, 0.1, rnd))
-        ens = sc.ClusteringEnsemble(
+        ens = sc.CosineClustering(
                 data, sim_threshold=0.4, cell_dims=2, normalize=True, rnd=rnd)
         ens.run()
         assert (sorted(map(len, ens.clusters)))[-12:] == [4, 5, 5, 6, 7, 7, 8, 11, 11, 11, 14, 394]

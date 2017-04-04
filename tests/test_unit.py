@@ -38,18 +38,17 @@ class BasicTestSuite(unittest.TestCase):
     def test_ensemble_array(self):
         "Cluster a small array, check results"
         data = np.array(self.TEST_ARRAY)
-        ens = sc.ClusteringEnsemble(
-                data, sim_threshold=0.9942, cell_dims=2, normalize=True, rnd=np.random.RandomState(42))
-        assert 'ClusteringEnsemble [sim=0.9942' in str(ens)
+        ens = sc.CosineClustering(
+                data, sim_threshold=0.9942, cell_dims=2, rnd=np.random.RandomState(42), verbosity=2)
         ens.run()
+        print(ens.t_angle, ens.t_cos, ens)
         assert np.array_equal(ens.cluster_map, [0, 0, 1, 1, 1, 1, 2])
 
     def test_ensemble_sparse(self):
         "Cluster a small sparse matrix, check results"
         data = scipy.sparse.csr_matrix(self.TEST_ARRAY)
-        ens = sc.ClusteringEnsemble(
-                data, sim_threshold=0.9942, cell_dims=2, normalize=True, rnd=np.random.RandomState(42))
-        assert 'ClusteringEnsemble [sim=0.9942' in str(ens)
+        ens = sc.CosineClustering(
+                data, sim_threshold=0.9942, cell_dims=2, rnd=np.random.RandomState(42))
         ens.run()
         assert np.array_equal(ens.cluster_map, [0, 0, 1, 1, 1, 1, 2])
 
@@ -63,7 +62,7 @@ class BasicTestSuite(unittest.TestCase):
             self.skipTest("Matplotlib/Pyplot not found")
 
         data = np.array(self.TEST_ARRAY)
-        ens = sc.ClusteringEnsemble(
+        ens = sc.CosineClustering(
                 data, sim_threshold=0.9942, cell_dims=2, normalize=True, rnd=np.random.RandomState(42))
         ens.run()
 
@@ -82,7 +81,7 @@ class BasicTestSuite(unittest.TestCase):
             self.skipTest("Matplotlib/Pyplot not found")
 
         data = scipy.sparse.csr_matrix(self.TEST_ARRAY)
-        ens = sc.ClusteringEnsemble(
+        ens = sc.CosineClustering(
                 data, sim_threshold=0.9942, cell_dims=2, normalize=True, rnd=np.random.RandomState(42))
         ens.run()
 
