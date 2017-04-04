@@ -100,9 +100,14 @@ class BaseClustering(object):
         """
 
         # Compute PCA and coordinates
-        self.progress("Computing feature PCA (%d dimensions) ..." % self.cell_dims)
-        self.PCA_comps = self.compute_PCAs(samples=PCA_samples, components=self.cell_dims)
-        self.PCA_coords = self.data.dot(self.PCA_comps.T)
+        if self.cell_dims > 0:
+            self.progress("Computing feature PCA (%d dimensions) ..." % self.cell_dims)
+            self.PCA_comps = self.compute_PCAs(samples=PCA_samples, components=self.cell_dims)
+            self.PCA_coords = self.data.dot(self.PCA_comps.T)
+        else:
+            self.PCA_comps = []
+            self.PCA_coords = np.zeros((self.n_rows, 1))
+
 
         nib_count = min(nibbles, self.n_rows // 2)
         self.progress("Nibble-clustering %d times ..." % nib_count)
@@ -257,19 +262,6 @@ class BaseClustering(object):
             if cn1 != cn2:
                 self.clusters[cn1].merge(self.clusters[cn2], self)
 
-    def cluster_around(self, center_row):
-        """
-        Cluster points around a point given by `center_row`.
-        Computes the distances of `center_row` with all other points.
-        """
-
-        center = self.data[center_row]
-
-        sim = toArray(self.data.dot(center.T)).flatten()
-        near_ix = (sim <= self.distance)
-
-        return self.cluster_points_of_mask(near_ix)
-
     def nibble_clusters(self, nibbles):
         """
         Repeatedly call `cluster_around` for random center points, preferring points
@@ -333,6 +325,12 @@ class BaseClustering(object):
 
     def multiply_adjacent_masked_cells(self):
 
+        # special case for cell_dims == 0
+        if self.cell_dims == 0:
+            assert len(self.cells) == 1
+            self.multiply_masked_cells(self.cells[(0,)], self.cells[(0,)])
+            return
+
         deltas = np.array(list(itertools.product(*([(-1, 0, 1)] * self.cell_dims))))
         pl = self.new_progress_logger(total=len(self.cells), msg="Adjacent cell multiplication")
 
@@ -343,15 +341,6 @@ class BaseClustering(object):
                 if c1_coords >= c2_coords and c2_coords in self.cells:
                     c2 = self.cells[c2_coords]
                     self.multiply_masked_cells(c1, c2)
-
-    def multiply_masked_cells(self, c1, c2):
-
-        product = toArray(c1.masked_mat.dot(c2.masked_mat.T))
-        assert product.shape == (len(c1.masked_idx), len(c2.masked_idx))
-
-        for i1, i2 in zip(*(product > self.distance).nonzero()):
-            # translate matrix indices to row indices and cluster them
-            self.cluster_two_rows(c1.masked_idx[i1], c2.masked_idx[i2])
 
     def clusters_by_size(self):
         """
@@ -431,14 +420,15 @@ class CosineClustering(BaseClustering):
 
         self.normalized = normalized
 
-        # Cosine similarity (compared to average of feature similarities)
+        # Cosine similarity (compared to feature similarities)
         self.t_cos = sim_threshold
 
         # Vector angle for all the features together
         self.t_angle = np.arccos(self.t_cos)
 
         # Euclidean distance corresponding to the similarity and angle when normalized
-        t_dist = 2 * np.sin(self.t_angle / 2)
+        t_dist = (2 * (1.0 - self.t_cos)) ** 0.5
+        assert abs(t_dist - 2 * np.sin(self.t_angle / 2)) < 1e-6
 
         super(CosineClustering, self).__init__(data, t_dist, cell_dims=cell_dims, rnd=rnd, verbosity=verbosity)
 
@@ -458,3 +448,32 @@ class CosineClustering(BaseClustering):
                 self.data = self.data * np.array([norm_rows]).T
 
         self.run_generic(nibbles=nibbles, PCA_samples=PCA_samples)
+
+    def cluster_around(self, center_row):
+        """
+        Cluster points around a point given by `center_row`.
+        Computes the distances of `center_row` with all other points.
+        """
+
+        center = self.data[center_row]
+
+        sim = toArray(self.data.dot(center.T)).flatten()
+        near_ix = (sim >= self.t_cos)
+
+        return self.cluster_points_of_mask(near_ix)
+
+    def multiply_masked_cells(self, c1, c2):
+
+        product = toArray(c1.masked_mat.dot(c2.masked_mat.T))
+        assert product.shape == (len(c1.masked_idx), len(c2.masked_idx))
+
+        for i1, i2 in zip(*(product > self.t_cos).nonzero()):
+            # translate matrix indices to row indices and cluster them
+            self.cluster_two_rows(c1.masked_idx[i1], c2.masked_idx[i2])
+
+    def __str__(self):
+        return "<{}, cos={:f}, dist={:f}, {} rows, {} features, " \
+               "{} clusters>".format(
+            self.__class__.__name__, self.t_cos, self.distance, self.n_rows,
+            self.n_features, len(self.clusters))
+

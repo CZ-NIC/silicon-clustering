@@ -98,7 +98,7 @@ class Cluster(object):
 
         mpl, plt = importPlt()
 
-        side = ensemble.t_dist
+        side = ensemble.distance
         coords = ensemble.PCA_coords
         coords_cluster = ensemble.PCA_coords[self.elements_idx]
         norm = mpl.colors.LogNorm()
@@ -123,13 +123,14 @@ class Cluster(object):
 
         mpl, plt = importPlt()
 
-        side = ensemble.t_dist
+        side = ensemble.distance
         f_m = ensemble.data[self.elements_idx]
-        if not toArray(f_m.max(axis=0) != f_m.min(axis=0)).any():
+        if f_m.shape[0] == 0 or not toArray(f_m.max(axis=0) != f_m.min(
+                axis=0)).any():
             return False
 
         comps = self.get_PCA(ensemble, comps=2)
-        coords = f_m * comps.T
+        coords = f_m.dot(comps.T)
         diameter = max(coords[:, 0].max() - coords[:, 0].min(), coords[:, 1].max() - coords[:, 1].min()) + 2 * side
         c1_avg = np.mean([coords[:, 0].min(), coords[:, 0].max()])
         c2_avg = np.mean([coords[:, 1].min(), coords[:, 1].max()])
