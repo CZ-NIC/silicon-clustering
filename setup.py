@@ -7,7 +7,7 @@ def readme():
 
 
 setup(name='silicon-clustering',
-      version='0.3',
+      version='0.3.1',
       description='Single-linkage connectivity clustering by cosine similarity',
       long_description=readme(),
       classifiers=[
