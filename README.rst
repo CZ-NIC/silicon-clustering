@@ -3,11 +3,13 @@ Single-Linkage connectivity clustering
 
 A fast algorithm computing connectivity components (clusters) of elements based
 on their feature cosine similarity. Two elements are connected by an edge if
-their cosine similarity is above a given threshold.
+their cosine similarity is above a given threshold. Accepts either a numpy
+2D array or a scipy column-sparse (CSR) matrix.
 
-The input is either numpy 2D array or scipy column-sparse (CSR) matrix.
+Install from `PyPI <https://pypi.python.org/pypi/silicon-clustering>`_
+with ``pip install silicon-clustering``
 
-Install with ``pip3 install silicon-clustering``. Currently Python 3 only.
+    Tomáš Gavenčiak ``gavento@ucw.cz``
 
 Usage example
 -------------
@@ -38,8 +40,8 @@ Details
 The algorithm uses several tricks to speed up the computation compared to traditional
 all-pair scalar products via matrix multiplication:
 
-* The data is projected into `cell_dims` principal components (PCA) by fearure. The
-  projection divides the data into cells of size `self.distance` so only rows from
+* The data is projected into ``cell_dims`` principal components (PCA) by feature. The
+  projection divides the data into cells of size ``self.distance`` so only rows from
   adjacent cells have a chance to be similar enough. Then the vectors of the rows of
   the adjacent cells are multiplied.
 
