@@ -16,23 +16,23 @@ Usage example
 
 ::
 
-import silicon, numpy
-# 1000 rows, 10 features
-data = numpy.random.rand(1000, 10)
-# The ensemble normalizes rows of the data by default
-# Choose high verbosity (via logging), cosine similarity >=0.97
-ens = silicon.CosineClustering(data, sim_threshold=0.97, verbosity=2)
-ens.run()
-# (... progress reports)
-ens.clusters[0]
-# <Cluster no 0, size 13>
-ens.clusters_by_size()[0]
-# <Cluster no 36, size 22>
-# With pyplot you can see the projected points
-import matplotlib.pyplot as plt
-ens.plot(); plt.show()
-# or the individual clusters
-ens.clusters_by_size()[0].plot(ens); plt.show()
+    import silicon, numpy
+    # 1000 rows, 10 features
+    data = numpy.random.rand(1000, 10)
+    # The ensemble normalizes rows of the data by default
+    # Choose high verbosity (via logging), cosine similarity >=0.97
+    ens = silicon.CosineClustering(data, sim_threshold=0.97, verbosity=2)
+    ens.run()
+    # (... progress reports)
+    ens.clusters[0]
+    # <Cluster no 0, size 13>
+    ens.clusters_by_size()[0]
+    # <Cluster no 36, size 22>
+    # With pyplot you can see the projected points
+    import matplotlib.pyplot as plt
+    ens.plot(); plt.show()
+    # or the individual clusters
+    ens.clusters_by_size()[0].plot(ens); plt.show()
 
 Details
 -------
