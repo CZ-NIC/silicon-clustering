@@ -6,6 +6,7 @@ import logging
 import sys
 import numpy as np
 import scipy.sparse
+from six import raise_from
 
 def importPlt():
     "Import and return (matplotlib, pyplot) or raise an exception"
@@ -15,7 +16,8 @@ def importPlt():
         import matplotlib.pyplot as plt
         return mpl, plt
     except ImportError as exc:
-        raise ImportError("Matplotlib nad Pyplot required for plot functions of silicon-clustering") from exc
+        raise_from(ImportError("Matplotlib nad Pyplot required for plot functions of "
+                               "silicon-clustering"), exc)
 
 
 def toArray(a):

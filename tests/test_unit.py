@@ -4,7 +4,6 @@ import numpy as np
 import os
 import scipy.sparse
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -72,11 +71,11 @@ class CosineTestSuite(unittest.TestCase):
                 data, sim_threshold=0.9942, cell_dims=2, rnd=42)
         ens.run()
 
-        plt.clf()
+        #plt.clf()
         ens.plot()
         #plt.savefig("test_plot_array-1.png")
 
-        plt.clf()
+        #plt.clf()
         ens.clusters[1].plot(ens)
         #plt.savefig("test_plot_array-2.png")
 
@@ -93,11 +92,11 @@ class CosineTestSuite(unittest.TestCase):
                 data, sim_threshold=0.9942, cell_dims=2, rnd=42)
         ens.run()
 
-        plt.clf()
+        #plt.clf()
         ens.plot()
         #plt.savefig("test_plot_sparse-1.png")
 
-        plt.clf()
+        #plt.clf()
         ens.clusters[1].plot(ens)
         #plt.savefig("test_plot_sparse-2.png")
 
