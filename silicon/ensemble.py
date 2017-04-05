@@ -135,6 +135,15 @@ class BaseClustering(object):
         self.progress("Pairwise multiplying adjacent cells ...")
         self.multiply_adjacent_masked_cells()
 
+        # Cleanup
+        self.clusters = [c for c in self.clusters if len(c) > 0]
+        for i, c in enumerate(self.clusters):
+            c.number = i
+            for r in c.elements_idx:
+                self.cluster_map[r] = i
+        del self.cell_mask
+        del self.cells
+
         self.details("Clustering control: %d nonempty, %d empty, total size %d (of %d rows), %d rows unclustered",
                      len([c for c in self.clusters if len(c) > 0]),
                      len([c for c in self.clusters if len(c) == 0]),
@@ -172,7 +181,7 @@ class BaseClustering(object):
         P.fit(m)
         return np.array([comp / (comp.dot(comp) ** 0.5) for comp in P.components_])
 
-    def plot_PCA_coords(self, filter_=None):
+    def plot(self, filter_=None):
         """
         Plot all the points (or those given by filter_) according to the PCA coordinates.
         """
@@ -344,7 +353,7 @@ class BaseClustering(object):
 
     def clusters_by_size(self):
         """
-        Return the clusters sorted largest-to-smallest
+        Return the clusters sorted largest-to-smallest. May include empty clusters.
         """
 
         return sorted(self.clusters, key=lambda c: len(c), reverse=True)

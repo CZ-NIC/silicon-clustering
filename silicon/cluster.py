@@ -91,7 +91,7 @@ class Cluster(object):
         norm = sklearn.preprocessing.normalize(P.components_)
         return norm
 
-    def plot_cluster_location(self, ensemble):
+    def plot_location(self, ensemble):
         """
         Plot the cluster density over the overall ensemble data density in the background.
         """
@@ -110,7 +110,7 @@ class Cluster(object):
         plt.plot((-0.9, -0.9 + side), (-0.9, -0.9), 'k-', lw=2)
         plt.colorbar(im)
 
-    def plot_cluster_zoomed(self, ensemble, resolution=(50, 50)):
+    def plot_zoomed(self, ensemble, resolution=(50, 50)):
         """
         Plot the cluster density with cluster-specific PCA-given coordinates.
 
@@ -146,7 +146,7 @@ class Cluster(object):
 
         return True
 
-    def plot_cluster_location_and_zoomed(self, ensemble, resolution=(50, 50)):
+    def plot(self, ensemble, resolution=(50, 50)):
         "Plot location in all the data and zoomed cluster side by side."
         
         mpl, plt = importPlt()
@@ -156,11 +156,11 @@ class Cluster(object):
             self.number, len(self), self.estimate_edge_density(ensemble)))
 
         plt.subplot(1, 2, 1)
-        self.plot_cluster_location(ensemble)
+        self.plot_location(ensemble)
         plt.title("Location")
 
         plt.subplot(1, 2, 2)
-        self.plot_cluster_zoomed(ensemble, resolution=resolution)
+        self.plot_zoomed(ensemble, resolution=resolution)
         plt.title("Zoomed cluster")
 
         plt.gcf().set_size_inches(12, 6)

@@ -44,8 +44,11 @@ class CosineTestSuite(unittest.TestCase):
         ens = sc.CosineClustering(
                 data, sim_threshold=0.9942, cell_dims=2, rnd=np.random.RandomState(42), verbosity=2)
         ens.run()
-        print(ens.t_angle, ens.t_cos, ens)
+        #print(ens.t_angle, ens.t_cos, ens)
         assert np.array_equal(ens.cluster_map, [0, 0, 1, 1, 1, 1, 2])
+        assert len(ens.clusters) == 3
+        assert len(ens.clusters_by_size()) == 3
+        assert len(ens.clusters_by_size()[0]) == 4
 
     def test_ensemble_sparse(self):
         "Cluster a small sparse matrix, check results"
@@ -70,11 +73,11 @@ class CosineTestSuite(unittest.TestCase):
         ens.run()
 
         plt.clf()
-        ens.plot_PCA_coords()
+        ens.plot()
         #plt.savefig("test_plot_array-1.png")
 
         plt.clf()
-        ens.clusters[1].plot_cluster_location_and_zoomed(ens)
+        ens.clusters[1].plot(ens)
         #plt.savefig("test_plot_array-2.png")
 
     def test_plot_sparse(self):
@@ -91,10 +94,10 @@ class CosineTestSuite(unittest.TestCase):
         ens.run()
 
         plt.clf()
-        ens.plot_PCA_coords()
+        ens.plot()
         #plt.savefig("test_plot_sparse-1.png")
 
         plt.clf()
-        ens.clusters[1].plot_cluster_location_and_zoomed(ens)
+        ens.clusters[1].plot(ens)
         #plt.savefig("test_plot_sparse-2.png")
 
