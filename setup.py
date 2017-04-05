@@ -7,7 +7,7 @@ def readme():
 
 
 setup(name='silicon-clustering',
-      version='0.1',
+      version='0.2',
       description='Single-linkage connectivity clustering by cosine similarity',
       long_description=readme(),
       classifiers=[
@@ -19,9 +19,9 @@ setup(name='silicon-clustering',
       keywords='connectivity clustering similarity PCA',
       url='https://github.com/CZ-NIC/silicon-clustering',
       author='Tomas Gavenciak',
-      author_email='tomas.gavenciak@nic.cz',
+      author_email='gavento@ucw.cz',
       license='MIT',
-      packages=['cosinesimilarity'],
+      packages=['silicon'],
       install_requires=[
           'scipy',
           'numpy',
