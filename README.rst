@@ -24,6 +24,7 @@ Usage example
 -------------
 
 ::
+
     import silicon, numpy
     # use a fixed seed to get the same data
     rnd = numpy.random.RandomState(42)
