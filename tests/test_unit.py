@@ -19,10 +19,12 @@ class BasicTestSuite(unittest.TestCase):
 
     def test_cluster(self):
         "Create a Cluster"
-        cluster = sc.Cluster(42)
+        cluster = sc.Cluster(42, None) # Dummy ensemble
         assert 'Cluster no 42' in str(cluster)
-        cluster.recompute_elems(np.array([2,3,42,0,42]))
-        assert np.array_equal(cluster.elements_idx, [2, 4])
+        cluster._recompute_elems(np.array([2,3,42,0,42]))
+        assert np.array_equal(list(cluster), [2, 4])
+        assert len(cluster) == 2
+        assert 2 in cluster and 3 not in cluster
 
 
 class CosineTestSuite(unittest.TestCase):
@@ -45,7 +47,7 @@ class CosineTestSuite(unittest.TestCase):
         ens.run()
         #print(ens.t_angle, ens.t_cos, ens)
         assert np.array_equal(ens.cluster_map, [0, 0, 1, 1, 1, 1, 2])
-        assert len(ens.clusters) == 3
+        assert len(ens.clusters()) == 3
         assert len(ens.clusters_by_size()) == 3
         assert len(ens.clusters_by_size()[0]) == 4
 
@@ -76,7 +78,7 @@ class CosineTestSuite(unittest.TestCase):
         #plt.savefig("test_plot_array-1.png")
 
         #plt.clf()
-        ens.clusters[1].plot(ens)
+        ens.clusters()[1].plot()
         #plt.savefig("test_plot_array-2.png")
 
     def test_plot_sparse(self):
@@ -97,6 +99,5 @@ class CosineTestSuite(unittest.TestCase):
         #plt.savefig("test_plot_sparse-1.png")
 
         #plt.clf()
-        ens.clusters[1].plot(ens)
+        ens.clusters()[1].plot()
         #plt.savefig("test_plot_sparse-2.png")
-

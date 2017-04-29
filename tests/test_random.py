@@ -30,8 +30,8 @@ class CosineTestSuite(unittest.TestCase):
         ens = sc.CosineClustering(data, verbosity=2,
                                   sim_threshold=0.4, cell_dims=2, rnd=rnd)
         ens.run()
-        #print(ens, (sorted(map(len, ens.clusters)))[-12:])
-        assert (sorted(map(len, ens.clusters)))[-12:] == self.TOP_12_SIZES
+        #print(ens, (sorted(map(len, ens.clusters())))[-12:])
+        assert (sorted(map(len, ens.clusters())))[-12:] == self.TOP_12_SIZES
 
     def test_random_array_no_nibble(self):
         "Cluster a random 1000x100 array, no nibbles, dim=2"
@@ -40,8 +40,8 @@ class CosineTestSuite(unittest.TestCase):
         ens = sc.CosineClustering(data, verbosity=2,
                                   sim_threshold=0.4, cell_dims=2, rnd=rnd)
         ens.run(nibbles=0)
-        #print(ens, (sorted(map(len, ens.clusters)))[-12:])
-        assert (sorted(map(len, ens.clusters)))[-12:] == self.TOP_12_SIZES
+        #print(ens, (sorted(map(len, ens.clusters())))[-12:])
+        assert (sorted(map(len, ens.clusters())))[-12:] == self.TOP_12_SIZES
 
     def test_random_array_full(self):
         "Cluster a random 1000x100 array, no nibbles, full product (dims=0)"
@@ -50,8 +50,8 @@ class CosineTestSuite(unittest.TestCase):
         ens = sc.CosineClustering(data, verbosity=2,
                                   sim_threshold=0.4, cell_dims=0, rnd=rnd)
         ens.run(nibbles=0)
-        #print(ens, (sorted(map(len, ens.clusters)))[-12:])
-        assert (sorted(map(len, ens.clusters)))[-12:] == self.TOP_12_SIZES
+        #print(ens, (sorted(map(len, ens.clusters())))[-12:])
+        assert (sorted(map(len, ens.clusters())))[-12:] == self.TOP_12_SIZES
 
     def test_random_sparse(self):
         "Cluster a random 1000x100 sparse matrix (10% full)"
@@ -60,6 +60,5 @@ class CosineTestSuite(unittest.TestCase):
         ens = sc.CosineClustering(data, verbosity=2,
                                   sim_threshold=0.4, cell_dims=2, rnd=rnd)
         ens.run()
-        #print((sorted(map(len, ens.clusters)))[-12:])
-        assert (sorted(map(len, ens.clusters)))[-12:] == self.TOP_12_SIZES
-
+        #print((sorted(map(len, ens.clusters())))[-12:])
+        assert (sorted(map(len, ens.clusters())))[-12:] == self.TOP_12_SIZES

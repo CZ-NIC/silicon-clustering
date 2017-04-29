@@ -4,6 +4,7 @@ import numpy as np
 import sklearn
 import sklearn.preprocessing
 import logging
+import weakref
 from .utils import importPlt, toArray
 
 logger = logging.getLogger('silicon')
@@ -12,14 +13,19 @@ logger = logging.getLogger('silicon')
 class Cluster(object):
     """
     A cluster of rows in the ensemble.
-    The ensemble is not a part of the class to avoid circular references.
-    Assumes that the `ensemble.cluster_map` is up to date.
-    """
 
-    def __init__(self, number):
+    Iterate over the `Cluster` to get member row numbers. Also supports
+    `len()` and row number membership.
+
+    The ensemble is held only as a weak ref to avoid circular references.
+    """
+    #    Assumes that the `ensemble.cluster_map` is up to date.
+
+    def __init__(self, number, ens):
 
         self.number = number
         self.elements_idx = np.array([], dtype=int)
+        self.ensemble = ens if ens is None else weakref.proxy(ens)
 
     def __len__(self):
 
@@ -33,24 +39,32 @@ class Cluster(object):
 
         return str(self)
 
-    def add(self, idx, ensemble):
+    def __iter__(self):
+
+        return self.elements_idx.__iter__()
+
+    def __contains__(self, r):
+
+        return r in self.elements_idx
+
+    def _add(self, idx):
         """
         Add a row that is not in any other cluster.
         """
 
-        assert ensemble.cluster_map[idx] == ensemble.NO_CLUSTER
+        assert self.ensemble.cluster_map[idx] == self.ensemble.NO_CLUSTER
         self.elements_idx = np.resize(self.elements_idx, len(self.elements_idx) + 1)  # SLOW
         self.elements_idx[-1] = idx
-        ensemble.cluster_map[idx] = self.number
+        self.ensemble.cluster_map[idx] = self.number
 
-    def recompute_elems(self, cluster_map):
+    def _recompute_elems(self, cluster_map):
         """
         Recompute the set of indices based on `cluster_map`. SLOW (linear in `cluster_map`).
         """
 
         self.elements_idx = np.nonzero(cluster_map == self.number)[0]
 
-    def merge(self, other, ensemble):
+    def _merge(self, other):
         """
         Merge two clusters (smaller into larger).
         Return the remaining one. The other cluster is kept as empty.
@@ -60,16 +74,16 @@ class Cluster(object):
             return self
 
         if len(other) > len(self):
-            return other.merge(self, ensemble)
+            return other._merge(self)
 
         logger.debug("Merging %s into %s", other, self)
-        ensemble.cluster_map[ other.elements_idx ] = self.number
+        self.ensemble.cluster_map[ other.elements_idx ] = self.number
         self.elements_idx = np.unique(np.concatenate((self.elements_idx, other.elements_idx)))
         other.elements_idx = np.array([], dtype=int)
 
         return self
 
-    def get_PCA(self, ensemble, comps=2, max_rows=1000):
+    def _get_PCA(self, comps=2, max_rows=1000):
         """
         Compute and return normalised principal components within the cluster.
 
@@ -85,22 +99,22 @@ class Cluster(object):
         else:
             rows = self.elements_idx
 
-        m = toArray(ensemble.data[rows])
+        m = toArray(self.ensemble.data[rows])
         P = sklearn.decomposition.PCA(comps, random_state=rnd, svd_solver='randomized')
         P.fit(m)
         norm = sklearn.preprocessing.normalize(P.components_)
         return norm
 
-    def plot_location(self, ensemble):
+    def plot_location(self):
         """
         Plot the cluster density over the overall ensemble data density in the background.
         """
 
         mpl, plt = importPlt()
 
-        side = ensemble.distance
-        coords = ensemble.PCA_coords
-        coords_cluster = ensemble.PCA_coords[self.elements_idx]
+        side = self.ensemble.distance
+        coords = self.ensemble.PCA_coords
+        coords_cluster = self.ensemble.PCA_coords[self.elements_idx]
         norm = mpl.colors.LogNorm()
 
         plt.gca().set_aspect('equal', adjustable='datalim')
@@ -110,7 +124,7 @@ class Cluster(object):
         plt.plot((-0.9, -0.9 + side), (-0.9, -0.9), 'k-', lw=2)
         plt.colorbar(im)
 
-    def plot_zoomed(self, ensemble, resolution=(50, 50)):
+    def plot_zoomed(self, resolution=(50, 50)):
         """
         Plot the cluster density with cluster-specific PCA-given coordinates.
 
@@ -123,13 +137,13 @@ class Cluster(object):
 
         mpl, plt = importPlt()
 
-        side = ensemble.distance
-        f_m = ensemble.data[self.elements_idx]
+        side = self.ensemble.distance
+        f_m = self.ensemble.data[self.elements_idx]
         if f_m.shape[0] == 0 or not toArray(f_m.max(axis=0) != f_m.min(
                 axis=0)).any():
             return False
 
-        comps = self.get_PCA(ensemble, comps=2)
+        comps = self._get_PCA(comps=2)
         coords = f_m.dot(comps.T)
         diameter = max(coords[:, 0].max() - coords[:, 0].min(), coords[:, 1].max() - coords[:, 1].min()) + 2 * side
         c1_avg = np.mean([coords[:, 0].min(), coords[:, 0].max()])
@@ -146,27 +160,27 @@ class Cluster(object):
 
         return True
 
-    def plot(self, ensemble, resolution=(50, 50)):
+    def plot(self, resolution=(50, 50)):
         "Plot location in all the data and zoomed cluster side by side."
-        
+
         mpl, plt = importPlt()
 
         plt.clf()
         plt.suptitle("Cluster %d, size %d, edge density %.4f" % (
-            self.number, len(self), self.estimate_edge_density(ensemble)))
+            self.number, len(self), self.estimate_edge_density()))
 
         plt.subplot(1, 2, 1)
-        self.plot_location(ensemble)
+        self.plot_location()
         plt.title("Location")
 
         plt.subplot(1, 2, 2)
-        self.plot_zoomed(ensemble, resolution=resolution)
+        self.plot_zoomed(resolution=resolution)
         plt.title("Zoomed cluster")
 
         plt.gcf().set_size_inches(12, 6)
         plt.tight_layout(rect=(0, 0, 1, 0.95))
 
-    def estimate_edge_density(self, ensemble, max_rows=1000):
+    def estimate_edge_density(self, max_rows=1000):
         """
         Return an estimate of the ratio of similar elements to all element pairs (0.0-1.0).
 
@@ -183,9 +197,8 @@ class Cluster(object):
         else:
             rows = self.elements_idx
 
-        m = ensemble.data[rows]
+        m = self.ensemble.data[rows]
         product = toArray(m.dot(m.T))
-        close = len( (product > ensemble.t_cos).nonzero()[0] )
+        close = len( (product > self.ensemble.t_cos).nonzero()[0] )
 
         return close / (len(rows) ** 2)
-
