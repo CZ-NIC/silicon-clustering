@@ -59,15 +59,19 @@ class CosineTestSuite(unittest.TestCase):
         ens.run()
         assert np.array_equal(ens.cluster_map, [0, 0, 1, 1, 1, 1, 2])
 
-    def test_plot_array(self):
-        "Cluster a small array, plot resulting clusters"
-
+    def load_mpl(self):
         try:
             import matplotlib as mpl
+            mpl.use('agg')
             import matplotlib.pyplot as plt
         except ImportError as exc:
             self.skipTest("Matplotlib/Pyplot not found")
+        return mpl, plt
 
+    def test_plot_array(self):
+        "Cluster a small array, plot resulting clusters"
+
+        mpl, plt = self.load_mpl()
         data = np.array(self.TEST_ARRAY)
         ens = sc.CosineClustering(
                 data, sim_threshold=0.9942, cell_dims=2, rnd=42)
@@ -83,12 +87,8 @@ class CosineTestSuite(unittest.TestCase):
 
     def test_plot_sparse(self):
         "Cluster a small sparse matrix, plot resulting clusters"
-        try:
-            import matplotlib as mpl
-            import matplotlib.pyplot as plt
-        except ImportError as exc:
-            self.skipTest("Matplotlib/Pyplot not found")
 
+        mpl, plt = self.load_mpl()
         data = scipy.sparse.csr_matrix(self.TEST_ARRAY)
         ens = sc.CosineClustering(
                 data, sim_threshold=0.9942, cell_dims=2, rnd=42)
