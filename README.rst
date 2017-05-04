@@ -20,6 +20,9 @@ Docs: `silicon-clustering.readthedocs.io <http://silicon-clustering.readthedocs.
 
 Author: Tomáš Gavenčiak, gavento@ucw.cz
 
+.. image:: https://travis-ci.org/CZ-NIC/silicon-clustering.svg?branch=master
+    :target: https://travis-ci.org/CZ-NIC/silicon-clustering
+
 Usage example
 -------------
 
